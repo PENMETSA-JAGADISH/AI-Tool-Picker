@@ -2,7 +2,8 @@ from task_parser import get_subtasks
 from top_tools import get_top_tools_from_web
 from internet_search import search_ai_tools
 from tool_ranker import compare_and_recommend
-from storage.db import save_tool_data
+
+from concurrent.futures import ThreadPoolExecutor
 
 if __name__ == "__main__":
     task = input("Enter your task:\n>")
@@ -11,18 +12,27 @@ if __name__ == "__main__":
     print("\nUnderstanding your goal...")
     subtask = get_subtasks(task)
     print(f"\nSubtask: {subtask}")
+    
     for i in subtask:
-        print("\n🤖 searching for top tools...")
-        top_tools = get_top_tools_from_web(subtask)
+        print(f"\n🔍 Processing subtask: {i}")
+        
+        # Parallelize top_tools and web_search for better performance
+        print("\n🤖 Searching for top tools and web directories in parallel...")
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            top_tools_future = executor.submit(get_top_tools_from_web, i)
+            web_tools_future = executor.submit(search_ai_tools, i)
+            
+            top_tools = top_tools_future.result()
+            web_tools = web_tools_future.result()
 
-        print("\n🌐 Searching top directories...")
-        web_tools = search_ai_tools(subtask)
-
-        print("\n📊 top tools and Web results...")
+        print("\n📊 Ranking top tools and Web results...")
         final_tools = compare_and_recommend(top_tools, web_tools)
 
         print("\n✅ Top Recommended Tools:")
-        for i, tool in enumerate(final_tools, 1):
-            print(f"\n{i}. {tool['name']}\n   URL: {tool['url']}\n   Reason: {tool['reason']}")
+        c=0
+        for idx, tool in enumerate(final_tools, 1):
+            if c==5:
+                break
+            c+=1
 
-        save_tool_data(subtask, final_tools)
+            print(f"\n{idx}. {tool['name']}\n   URL: {tool['url']}\n   Reason: {tool['reason']}")
