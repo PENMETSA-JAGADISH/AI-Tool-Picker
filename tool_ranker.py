@@ -3,9 +3,7 @@ def compare_and_recommend(top_tools, web_tools):
     combined = top_tools + web_tools
 
     # Deduplicate by normalized name
-    print(top_tools)
-    print("hi")
-    print(web_tools)
+    
     seen = set()
     unique_tools = []
 
