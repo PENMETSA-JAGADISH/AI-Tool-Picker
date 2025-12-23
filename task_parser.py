@@ -1,25 +1,24 @@
-import requests
 import os
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-headers = {
-    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-    "Content-Type": "application/json"
-}
+# Configure Gemini API
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 def get_subtasks(task: str) -> list:
     prompt = f"""
 You are an expert AI task analyst.
-Your job is to identify **if the task is atomic** (can be completed using a single AI tool).
+Your job is to identify **if the task is atomic** (can be completed using a single AI tool) or multiple tasks.
 
 If the task is atomic, return:
-1. The exact type of AI tool needed to complete it in one step (no breakdown)
+1. The exact type of AI tool needed to complete it in one step (no breakdown){task}
 
-If the task is complex (truly requires multiple tool types), return:
+If the task is complex (truly requires multiple tool types){task}, return:
 1. Subtasks strictly as AI tool functions — only list AI tool categories (not user steps or logic)
 
 Only return the **minimal list of AI tools** required to solve the task, one per line.
@@ -48,42 +47,24 @@ Task: I want to generate product images from description
 Output:  
 1. AI tool that generates product images from text  
 
-i need a json file of this format
-
-    "choices": 
-            "message": 
-                "content": "some text"
-
 Now analyze this task:  
 Task: {task}  
 Output:
 """
 
-    payload = {
-        "model": "google/gemini-2.0-flash-exp:free",
-        "messages": [
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-    }
+    try:
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        response = model.generate_content(prompt)
+        content = response.text
 
-    response = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers=headers,
-        json=payload
-    )
+        # Parse response into list (assumes lines like: "1. AI tool that...")
+        subtasks = []
+        for line in content.strip().splitlines():
+            if line.strip() and any(char.isdigit() for char in line):
+                task_description = line.split('.', 1)[-1].strip()
+                subtasks.append(task_description)
 
-    data = response.json()
-    print(data)
-    content = data["choices"][0]["message"]["content"]
-
-    # Parse response into list (assumes lines like: "1. AI tool that...")
-    subtasks = []
-    for line in content.strip().splitlines():
-        if line.strip() and any(char.isdigit() for char in line):
-            task_description = line.split('.', 1)[-1].strip()
-            subtasks.append(task_description)
-
-    return subtasks
+        return subtasks
+    except Exception as e:
+        print(f"[❌] Error getting subtasks: {e}")
+        return []
